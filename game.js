@@ -175,21 +175,35 @@ function handleGameInput() {
 }
 
 function setupInputHandlers() {
+  // Click on canvas to flap or restart
   gameCanvas.addEventListener("click", () => {
     handleGameInput();
   });
 
+  // Click on game over menu to restart
+  gameOverMenu.addEventListener("click", () => {
+    if (gameOverCurrentGame) {
+      startGame();
+    }
+  });
+
+  // Click anywhere on body to restart if game over
+  document.body.addEventListener("click", () => {
+    if (gameOverCurrentGame) {
+      startGame();
+    }
+  });
+
+  // Prevent clicks on startMenu from bubbling to body (avoid accidental restart)
+  startMenu.addEventListener("click", e => {
+    e.stopPropagation();
+  });
+
+  // Space key to flap or restart
   document.addEventListener("keydown", (e) => {
     if (e.code === "Space") {
       e.preventDefault(); // prevent page scrolling on spacebar
       handleGameInput();
-    }
-  });
-
-  // Also allow clicking on Game Over menu to restart
-  gameOverMenu.addEventListener("click", () => {
-    if (gameOverCurrentGame) {
-      startGame();
     }
   });
 }
@@ -228,8 +242,12 @@ function startGame() {
   if (gameRunning && !gameOverCurrentGame) return;
 
   // Get actual canvas size from DOM
-  currentCanvasWidth = gameCanvas.clientWidth;
-  currentCanvasHeight = gameCanvas.clientHeight;
+  currentCanvasWidth = gameCanvas.clientWidth || GAME_SETTINGS_BASE.CANVAS_WIDTH;
+  currentCanvasHeight = gameCanvas.clientHeight || GAME_SETTINGS_BASE.CANVAS_HEIGHT;
+
+  // Set canvas width and height attributes (important for drawing scale)
+  gameCanvas.width = currentCanvasWidth;
+  gameCanvas.height = currentCanvasHeight;
 
   // Calculate scaling factors
   const scaleX = currentCanvasWidth / GAME_SETTINGS_BASE.CANVAS_WIDTH;
@@ -254,171 +272,172 @@ function startGame() {
     MIN_PIPE_TOP_HEIGHT: DIFFICULTY_MODES[selectedDifficulty].MIN_PIPE_TOP_HEIGHT * scaleY,
     MAX_PIPE_TOP_HEIGHT_OFFSET: DIFFICULTY_MODES[selectedDifficulty].MAX_PIPE_TOP_HEIGHT_OFFSET * scaleY,
 
-    mapAnimationSpeed: currentMapConfig.animationSpeed
+    mapConfig: currentMapConfig
   };
 
-  // Reset game state
-  birdY = currentGameSettings.CANVAS_HEIGHT / 2 - currentGameSettings.BIRD_HEIGHT / 2;
+  birdY = currentCanvasHeight / 2 - currentGameSettings.BIRD_HEIGHT / 2;
   velocity = 0;
   score = 0;
   pipes = [];
   frameCount = 0;
   gameOverCurrentGame = false;
   _flapRequested = false;
-  currentBackgroundFrameIndex = 0;
-  backgroundAnimationCounter = 0;
 
-  // Show/hide menus and canvas
   startMenu.style.display = "none";
   gameOverMenu.style.display = "none";
   gameCanvas.style.display = "block";
 
-  if (currentAnimationFrame) {
-    cancelAnimationFrame(currentAnimationFrame);
-  }
+  // Play background music
+  bgMusic.currentTime = 0;
+  bgMusic.play().catch(() => {});
 
-  if (!gameRunning) {
-    playSound(sounds.start, "start");
-  }
-  playSound(bgMusic, "background music");
-
+  // Start game loop
+  requestAnimationFrame(gameLoop);
   gameRunning = true;
+  currentAnimationFrame = 0;
+  backgroundAnimationCounter = 0;
+  currentBackgroundFrameIndex = 0;
 
-  // Load all assets
-  const backgroundPromises = currentMapConfig.background.map(src => loadImage(`assets/${src}`, "lightblue"));
-
-  const assetPromises = [
-    loadImage(`assets/birds/${selectedSkin}`, "yellow"),
-    ...backgroundPromises,
-    loadImage(`assets/${currentMapConfig.toppipe}`, "green"),
-    loadImage(`assets/${currentMapConfig.botpipe}`, "green"),
-    loadImage(`assets/${currentMapConfig.ground}`, "brown")
-  ];
-
-  Promise.all(assetPromises).then(images => {
-    const birdImg = images[0];
-    const backgrounds = images.slice(1, 1 + currentMapConfig.background.length);
-    const topPipeImg = images[1 + currentMapConfig.background.length];
-    const botPipeImg = images[2 + currentMapConfig.background.length];
-    const groundImg = images[3 + currentMapConfig.background.length];
-
-    runGameLoop(birdImg, backgrounds, topPipeImg, botPipeImg, groundImg);
-  });
+  console.log("Game started");
 }
 
 /**
- * Runs the main game loop with all rendering and update logic.
+ * Ends the current game, shows game over menu, stops the game loop.
  */
-function runGameLoop(birdImg, backgrounds, topPipeImg, botPipeImg, groundImg) {
+function endGame() {
+  gameRunning = false;
+  gameOverCurrentGame = true;
+
+  playSound(sounds.hit, "hit");
+  playSound(sounds.die, "die");
+  bgMusic.pause();
+
+  finalScoreDisplay.textContent = `Điểm của bạn: ${score}`;
+
+  // Show game over menu
+  gameOverMenu.style.display = "flex";
+  startMenu.style.display = "none";
+
+  // Keep canvas visible so user can see final frame behind the menu
+  gameCanvas.style.display = "block";
+
+  console.log("Game over");
+}
+
+/**
+ * Draws the current frame of the game on canvas.
+ */
+async function gameLoop() {
+  if (!gameRunning) return;
+
   const ctx = gameCanvas.getContext("2d");
 
-  function loop() {
-    frameCount++;
+  // Clear canvas
+  ctx.clearRect(0, 0, currentCanvasWidth, currentCanvasHeight);
 
-    // Update background animation
-    if (currentGameSettings.mapAnimationSpeed > 0) {
-      backgroundAnimationCounter++;
-      if (backgroundAnimationCounter >= currentGameSettings.mapAnimationSpeed) {
-        currentBackgroundFrameIndex = (currentBackgroundFrameIndex + 1) % backgrounds.length;
-        backgroundAnimationCounter = 0;
-      }
+  // Load background image (animated if multiple frames)
+  const bgFrames = currentGameSettings.mapConfig.background;
+  backgroundAnimationCounter++;
+  if (currentGameSettings.mapConfig.animationSpeed > 0) {
+    if (backgroundAnimationCounter >= currentGameSettings.mapConfig.animationSpeed) {
+      currentBackgroundFrameIndex = (currentBackgroundFrameIndex + 1) % bgFrames.length;
+      backgroundAnimationCounter = 0;
     }
+  }
+  const bgImage = await loadImage(bgFrames[currentBackgroundFrameIndex]);
 
-    // Clear canvas
-    ctx.clearRect(0, 0, currentCanvasWidth, currentCanvasHeight);
+  // Draw background
+  if (!bgImage.isFallback) {
+    ctx.drawImage(bgImage, 0, 0, currentCanvasWidth, currentCanvasHeight);
+  } else {
+    ctx.fillStyle = "#cceeff";
+    ctx.fillRect(0, 0, currentCanvasWidth, currentCanvasHeight);
+  }
 
-    // Draw background
-    const bg = backgrounds[currentBackgroundFrameIndex];
-    if (bg.isFallback) {
-      ctx.fillStyle = bg.fallbackColor || "lightblue";
-      ctx.fillRect(0, 0, currentCanvasWidth, currentCanvasHeight);
+  // Draw pipes
+  for (let pipe of pipes) {
+    const topPipeImg = await loadImage(currentGameSettings.mapConfig.toppipe);
+    const botPipeImg = await loadImage(currentGameSettings.mapConfig.botpipe);
+
+    // Top pipe
+    if (!topPipeImg.isFallback) {
+      ctx.drawImage(topPipeImg, pipe.x, 0, currentGameSettings.PIPE_WIDTH, pipe.topHeight);
     } else {
-      ctx.drawImage(bg, 0, 0, currentCanvasWidth, currentCanvasHeight);
+      ctx.fillStyle = "green";
+      ctx.fillRect(pipe.x, 0, currentGameSettings.PIPE_WIDTH, pipe.topHeight);
     }
 
-    // Update bird physics
-    velocity += currentGameSettings.GRAVITY;
-    if (_flapRequested) {
-      velocity = currentGameSettings.FLAP_STRENGTH;
-      _flapRequested = false;
-    }
-
-    birdY += velocity;
-
-    // Clamp bird to top
-    if (birdY < 0) {
-      birdY = 0;
-      velocity = 0;
-    }
-
-    // Draw bird
-    if (birdImg.isFallback) {
-      ctx.fillStyle = birdImg.fallbackColor || "yellow";
-      ctx.fillRect(currentGameSettings.BIRD_START_X, birdY, currentGameSettings.BIRD_WIDTH, currentGameSettings.BIRD_HEIGHT);
+    // Bottom pipe
+    if (!botPipeImg.isFallback) {
+      ctx.drawImage(botPipeImg, pipe.x, pipe.topHeight + currentGameSettings.PIPE_GAP, currentGameSettings.PIPE_WIDTH, currentCanvasHeight);
     } else {
-      ctx.drawImage(birdImg, currentGameSettings.BIRD_START_X, birdY, currentGameSettings.BIRD_WIDTH, currentGameSettings.BIRD_HEIGHT);
+      ctx.fillStyle = "green";
+      ctx.fillRect(pipe.x, pipe.topHeight + currentGameSettings.PIPE_GAP, currentGameSettings.PIPE_WIDTH, currentCanvasHeight);
     }
+  }
 
-    // Spawn pipes at intervals
-    if (frameCount % currentGameSettings.PIPE_SPAWN_RATE === 0) {
-      const topPipeHeight = currentGameSettings.MIN_PIPE_TOP_HEIGHT + Math.random() * currentGameSettings.MAX_PIPE_TOP_HEIGHT_OFFSET;
-      pipes.push({
-        x: currentCanvasWidth,
-        topHeight: topPipeHeight
-      });
-    }
+  // Draw ground
+  const groundImg = await loadImage(currentGameSettings.mapConfig.ground);
+  if (!groundImg.isFallback) {
+    ctx.drawImage(groundImg, 0, currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK, currentCanvasWidth, currentGameSettings.BASE_HEIGHT_FALLBACK);
+  } else {
+    ctx.fillStyle = "#964B00";
+    ctx.fillRect(0, currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK, currentCanvasWidth, currentGameSettings.BASE_HEIGHT_FALLBACK);
+  }
 
-    // Update and draw pipes
-    ctx.fillStyle = "transparent";
-    for (let i = pipes.length - 1; i >= 0; i--) {
-      pipes[i].x -= 2;
+  // Load bird image
+  const birdImg = await loadImage(`assets/birds/${selectedSkin}`);
+  if (!birdImg.isFallback) {
+    ctx.drawImage(birdImg, currentGameSettings.BIRD_START_X, birdY, currentGameSettings.BIRD_WIDTH, currentGameSettings.BIRD_HEIGHT);
+  } else {
+    ctx.fillStyle = "yellow";
+    ctx.fillRect(currentGameSettings.BIRD_START_X, birdY, currentGameSettings.BIRD_WIDTH, currentGameSettings.BIRD_HEIGHT);
+  }
 
-      // Draw top pipe
-      if (topPipeImg.isFallback) {
-        ctx.fillStyle = "green";
-        ctx.fillRect(pipes[i].x, 0, currentGameSettings.PIPE_WIDTH, pipes[i].topHeight);
-      } else {
-        ctx.drawImage(topPipeImg, pipes[i].x, pipes[i].topHeight - topPipeImg.height, currentGameSettings.PIPE_WIDTH, pipes[i].topHeight);
-      }
+  // Apply gravity and flap velocity
+  velocity += currentGameSettings.GRAVITY;
+  if (_flapRequested) {
+    velocity = currentGameSettings.FLAP_STRENGTH;
+    _flapRequested = false;
+  }
+  birdY += velocity;
 
-      // Draw bottom pipe
-      const bottomPipeY = pipes[i].topHeight + currentGameSettings.PIPE_GAP;
-      const bottomPipeHeight = currentCanvasHeight - bottomPipeY - currentGameSettings.BASE_HEIGHT_FALLBACK;
-      if (botPipeImg.isFallback) {
-        ctx.fillStyle = "green";
-        ctx.fillRect(pipes[i].x, bottomPipeY, currentGameSettings.PIPE_WIDTH, bottomPipeHeight);
-      } else {
-        ctx.drawImage(botPipeImg, pipes[i].x, bottomPipeY, currentGameSettings.PIPE_WIDTH, bottomPipeHeight);
-      }
+  // Prevent bird from going above canvas
+  if (birdY < 0) {
+    birdY = 0;
+    velocity = 0;
+  }
 
-      // Remove pipes off screen
-      if (pipes[i].x + currentGameSettings.PIPE_WIDTH < 0) {
-        pipes.splice(i, 1);
-        score++;
-        playSound(sounds.score, "score");
-      }
-    }
+  // Check collision with ground
+  if (birdY + currentGameSettings.BIRD_HEIGHT >= currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK) {
+    birdY = currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK - currentGameSettings.BIRD_HEIGHT;
+    endGame();
+    return;
+  }
 
-    // Draw ground
-    if (groundImg.isFallback) {
-      ctx.fillStyle = groundImg.fallbackColor || "brown";
-      ctx.fillRect(0, currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK, currentCanvasWidth, currentGameSettings.BASE_HEIGHT_FALLBACK);
+  // Spawn pipes every PIPE_SPAWN_RATE frames
+  if (frameCount % currentGameSettings.PIPE_SPAWN_RATE === 0) {
+    const topPipeHeight = currentGameSettings.MIN_PIPE_TOP_HEIGHT + Math.random() * currentGameSettings.MAX_PIPE_TOP_HEIGHT_OFFSET;
+    pipes.push({
+      x: currentCanvasWidth,
+      topHeight: topPipeHeight
+    });
+  }
+
+  // Move pipes and check collisions
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    pipes[i].x -= 2; // pipe speed
+
+    // Remove pipes out of screen
+    if (pipes[i].x + currentGameSettings.PIPE_WIDTH < 0) {
+      pipes.splice(i, 1);
+      score++;
+      playSound(sounds.score, "score");
     } else {
-      ctx.drawImage(groundImg, 0, currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK, currentCanvasWidth, currentGameSettings.BASE_HEIGHT_FALLBACK);
-    }
+      // Collision detection with bird
+      const pipeX = pipes[i].x;
+      const pipeWidth = currentGameSettings.PIPE_WIDTH;
 
-    // Draw score
-    ctx.fillStyle = "white";
-    ctx.font = "30px 'Press Start 2P', cursive";
-    ctx.fillText(score, currentCanvasWidth / 2, 50);
-
-    // Collision detection
-    if (birdY + currentGameSettings.BIRD_HEIGHT > currentCanvasHeight - currentGameSettings.BASE_HEIGHT_FALLBACK) {
-      endGame();
-      return;
-    }
-
-    for (const pipe of pipes) {
       // Bird rectangle
       const birdRect = {
         x: currentGameSettings.BIRD_START_X,
@@ -429,57 +448,47 @@ function runGameLoop(birdImg, backgrounds, topPipeImg, botPipeImg, groundImg) {
 
       // Top pipe rectangle
       const topPipeRect = {
-        x: pipe.x,
+        x: pipeX,
         y: 0,
-        width: currentGameSettings.PIPE_WIDTH,
-        height: pipe.topHeight
+        width: pipeWidth,
+        height: pipes[i].topHeight
       };
 
       // Bottom pipe rectangle
       const bottomPipeRect = {
-        x: pipe.x,
-        y: pipe.topHeight + currentGameSettings.PIPE_GAP,
-        width: currentGameSettings.PIPE_WIDTH,
-        height: currentCanvasHeight - (pipe.topHeight + currentGameSettings.PIPE_GAP + currentGameSettings.BASE_HEIGHT_FALLBACK)
+        x: pipeX,
+        y: pipes[i].topHeight + currentGameSettings.PIPE_GAP,
+        width: pipeWidth,
+        height: currentCanvasHeight
       };
 
-      if (rectIntersect(birdRect, topPipeRect) || rectIntersect(birdRect, bottomPipeRect)) {
+      if (rectsOverlap(birdRect, topPipeRect) || rectsOverlap(birdRect, bottomPipeRect)) {
         endGame();
         return;
       }
     }
-
-    if (gameRunning) {
-      currentAnimationFrame = requestAnimationFrame(loop);
-    }
   }
 
-  loop();
+  // Draw score
+  ctx.fillStyle = "#fff";
+  ctx.font = "30px Arial";
+  ctx.fillText(`Điểm: ${score}`, 10, 50);
+
+  frameCount++;
+  currentAnimationFrame++;
+
+  requestAnimationFrame(gameLoop);
 }
 
 /**
- * Checks if two rectangles intersect
+ * Returns true if two rectangles overlap.
+ * Rectangles defined by x,y,width,height
  */
-function rectIntersect(r1, r2) {
-  return !(r2.x > r1.x + r1.width ||
-           r2.x + r2.width < r1.x ||
-           r2.y > r1.y + r1.height ||
-           r2.y + r2.height < r1.y);
+function rectsOverlap(r1, r2) {
+  return !(
+    r1.x > r2.x + r2.width ||
+    r1.x + r1.width < r2.x ||
+    r1.y > r2.y + r2.height ||
+    r1.y + r1.height < r2.y
+  );
 }
-
-/**
- * Ends the current game, shows game over screen.
- */
-function endGame() {
-  gameRunning = false;
-  gameOverCurrentGame = true;
-
-  playSound(sounds.hit, "hit");
-  playSound(sounds.die, "die");
-  bgMusic.pause();
-  finalScoreDisplay.textContent = `Điểm của bạn: ${score}`;
-
-  gameOverMenu.style.display = "flex";
-  gameCanvas.style.display = "none";
-}
-
