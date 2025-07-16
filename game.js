@@ -147,12 +147,22 @@ document.addEventListener("DOMContentLoaded", () => {
     startGame();
   });
 
+  // Listener cho flap (vỗ cánh) khi game đang chạy
   gameCanvas.addEventListener("click", handleGameInput);
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space") {
       handleGameInput();
     }
   });
+
+  // FIX CHO ANDROID: Listener để chơi lại khi game over
+  gameOverMenu.addEventListener("click", () => {
+    if (gameOverCurrentGame) { // Chỉ restart nếu game thực sự đã kết thúc
+      console.log("Restarting game from game over menu click...");
+      startGame();
+    }
+  });
+
 
   startMenu.style.display = "flex";
   gameOverMenu.style.display = "none";
@@ -168,10 +178,9 @@ document.addEventListener("DOMContentLoaded", () => {
  * Decides whether to flap the bird or restart the game.
  */
 function handleGameInput() {
-  if (gameOverCurrentGame) {
-    console.log("Restarting game...");
-    startGame();
-  } else if (gameRunning) {
+  // Logic này chỉ nên xử lý việc vỗ cánh khi game đang chạy bình thường.
+  // Việc restart khi game over sẽ được xử lý bởi listener trên gameOverMenu.
+  if (gameRunning && !gameOverCurrentGame) {
     _flapRequested = true;
     playSound(sounds.flap, "flap");
   }
@@ -208,17 +217,17 @@ function playSound(sound, soundName) {
  * Starts a new game instance. Hides menus, displays canvas, loads assets, and initializes game logic.
  */
 function startGame() {
-  if (gameRunning && !gameOverCurrentGame) return;
+  if (gameRunning && !gameOverCurrentGame) return; // Prevent starting a new game if one is already running and not over
 
-  // Lấy kích thước thực tế của canvas từ DOM
+  // Get actual canvas dimensions from DOM
   currentCanvasWidth = gameCanvas.clientWidth;
   currentCanvasHeight = gameCanvas.clientHeight;
 
-  // Tính toán tỷ lệ scaling dựa trên kích thước thực tế so với kích thước logic ban đầu
+  // Calculate scaling factors based on actual vs. base logical dimensions
   const scaleX = currentCanvasWidth / GAME_SETTINGS_BASE.CANVAS_WIDTH;
   const scaleY = currentCanvasHeight / GAME_SETTINGS_BASE.CANVAS_HEIGHT;
 
-  // Lấy cấu hình map hiện tại
+  // Get current map configuration
   const currentMapConfig = MAP_CONFIGS[selectedMap];
 
   currentGameSettings = {
@@ -237,7 +246,7 @@ function startGame() {
     MIN_PIPE_TOP_HEIGHT: DIFFICULTY_MODES[selectedDifficulty].MIN_PIPE_TOP_HEIGHT * scaleY,
     MAX_PIPE_TOP_HEIGHT_OFFSET: DIFFICULTY_MODES[selectedDifficulty].MAX_PIPE_TOP_HEIGHT_OFFSET * scaleY,
 
-    // MỚI: Thêm thông tin animation speed của map vào settings
+    // MỚI: Add map animation speed to settings
     mapAnimationSpeed: currentMapConfig.animationSpeed 
   };
 
@@ -247,14 +256,14 @@ function startGame() {
   score = 0;
   pipes = [];
   frameCount = 0;
-  gameOverCurrentGame = false;
+  gameOverCurrentGame = false; // Ensure this is reset to false!
   _flapRequested = false;
   currentBackgroundFrameIndex = 0; // Reset frame animation
   backgroundAnimationCounter = 0; // Reset counter
 
   // Hide menus and show canvas
   startMenu.style.display = "none";
-  gameOverMenu.style.display = "none";
+  gameOverMenu.style.display = "none"; // Ensure game over menu is hidden
   gameCanvas.style.display = "block";
 
   // Stop any previous animation frame
@@ -262,20 +271,22 @@ function startGame() {
     cancelAnimationFrame(currentAnimationFrame);
   }
 
+  // Play start sound only if the game wasn't running before (i.e., first start)
+  // Otherwise, it's a restart, no need for the start sound
   if (!gameRunning) {
       playSound(sounds.start, "start");
   }
   playSound(bgMusic, "background music");
 
-  gameRunning = true;
+  gameRunning = true; // Set gameRunning to true for the new game
 
-  // MỚI: Load tất cả các hình ảnh cho map đã chọn
-  // Lưu ý: background có thể là một mảng các đường dẫn
+  // MỚI: Load all images for the selected map
+  // Note: background can be an array of paths
   const backgroundPromises = currentMapConfig.background.map(src => loadImage(`assets/${src}`, "lightblue"));
 
   const assetPromises = [
-    loadImage(`assets/birds/${selectedSkin}`, "yellow"), // Đường dẫn chim đã cập nhật
-    ...backgroundPromises, // Thêm các Promise tải background
+    loadImage(`assets/birds/${selectedSkin}`, "yellow"), // Updated bird path
+    ...backgroundPromises, // Add background image promises
     loadImage(`assets/${currentMapConfig.toppipe}`, "green"),
     loadImage(`assets/${currentMapConfig.botpipe}`, "green"),
     loadImage(`assets/${currentMapConfig.ground}`, "brown")
@@ -284,12 +295,12 @@ function startGame() {
   Promise.all(assetPromises)
     .then(images => {
       const birdImg = images[0];
-      const backgroundImgs = images.slice(1, 1 + currentMapConfig.background.length); // Lấy các ảnh background
+      const backgroundImgs = images.slice(1, 1 + currentMapConfig.background.length); // Get background images
       const toppipeImg = images[1 + currentMapConfig.background.length];
       const botpipeImg = images[2 + currentMapConfig.background.length];
       const baseImg = images[3 + currentMapConfig.background.length];
 
-      // Truyền tất cả các background images vào initGameLoop
+      // Pass all background images to initGameLoop
       initGameLoop({ birdImg, backgroundImgs, toppipeImg, botpipeImg, baseImg });
     })
     .catch(error => {
@@ -340,7 +351,7 @@ function initGameLoop(assets) {
     ctx.clearRect(0, 0, currentGameSettings.CANVAS_WIDTH, currentGameSettings.CANVAS_HEIGHT);
     frameCount++;
 
-    // MỚI: Xử lý và vẽ background animation
+    // MỚI: Handle and draw background animation
     if (assets.backgroundImgs.length > 1 && currentGameSettings.mapAnimationSpeed > 0) {
       backgroundAnimationCounter++;
       if (backgroundAnimationCounter >= currentGameSettings.mapAnimationSpeed) {
@@ -348,7 +359,7 @@ function initGameLoop(assets) {
         backgroundAnimationCounter = 0;
       }
     }
-    // Vẽ background hiện tại
+    // Draw current background
     drawImageOrFallback(assets.backgroundImgs[currentBackgroundFrameIndex], 0, 0, currentGameSettings.CANVAS_WIDTH, currentGameSettings.CANVAS_HEIGHT, "lightblue");
 
     // Spawn new pipes
@@ -365,7 +376,7 @@ function initGameLoop(assets) {
     // Update and draw pipes
     pipes = pipes.filter(pipe => pipe.x > -currentGameSettings.PIPE_WIDTH);
     pipes.forEach(pipe => {
-      pipe.x -= 2;
+      pipe.x -= 2; // Pipe movement speed
 
       drawImageOrFallback(assets.toppipeImg, pipe.x, pipe.height - assets.toppipeImg.height, currentGameSettings.PIPE_WIDTH, assets.toppipeImg.height, "green");
       drawImageOrFallback(assets.botpipeImg, pipe.x, pipe.height + currentGameSettings.PIPE_GAP, currentGameSettings.PIPE_WIDTH, currentGameSettings.CANVAS_HEIGHT - (pipe.height + currentGameSettings.PIPE_GAP) - (assets.baseImg.height || currentGameSettings.BASE_HEIGHT_FALLBACK), "green");
@@ -383,7 +394,7 @@ function initGameLoop(assets) {
         gameOverCurrentGame = true;
         playSound(sounds.hit, "hit");
         setTimeout(() => playSound(sounds.die, "die"), 300);
-        return;
+        return; // Exit gameLoop on collision
       }
 
       // Score logic
@@ -416,7 +427,7 @@ function initGameLoop(assets) {
       gameOverCurrentGame = true;
       playSound(sounds.hit, "hit");
       setTimeout(() => playSound(sounds.die, "die"), 300);
-      return;
+      return; // Exit gameLoop on collision
     }
 
     // Draw score
