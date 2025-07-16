@@ -1,37 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Flappy Bird Remake</title>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <style>
-    /* --- (Giữ nguyên CSS như bạn đã tạo) --- */
-    body { font-family: 'Press Start 2P', cursive; background-color: #7bdcb5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.7); }
-    #gameContainer { position: relative; max-width: min(400px, 100vh*2/3,95vw); max-height: min(600px,95vh); width:100%; height:100%; aspect-ratio:2/3; background-color: #8be4fd; border:4px solid #333; box-shadow:8px 8px 0 rgba(0,0,0,0.7); overflow:hidden; border-radius:8px; display:flex; justify-content:center; align-items:center; }
-    #gameCanvas { display:block; width:100%; height:100%; border-radius:4px; image-rendering:pixelated; }
-    .game-overlay { position:absolute; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; text-align:center; font-size:clamp(0.55em,2.8vmin,1.1em); text-shadow:2px 2px 4px rgba(0,0,0,0.8); z-index:10; padding:1.8vmin 1.5vmin; box-sizing:border-box; pointer-events:auto; }
-    .game-overlay h1 { font-size:clamp(1.6em,6.5vmin,2.4em); color:#ffe600; margin-bottom:2vmin; text-shadow:3px 3px 0 #ff6600,5px 5px 0 rgba(0,0,0,0.7); }
-    .game-overlay p { margin-bottom:1.2vmin; font-size:clamp(0.65em,2.2vmin,0.95em); }
-    .skin-selection, .map-selection, .difficulty-selection { margin:1.8vmin 0; display:flex; gap:1.2vmin; flex-wrap:wrap; justify-content:center; }
-    .skin-option, .map-option { cursor:pointer; border:3px solid transparent; border-radius:10px; padding:0.8vmin; background-color:rgba(255,255,255,0.1); transition:all 0.2s ease; }
-    .skin-option:hover, .map-option:hover { background-color:rgba(255,255,255,0.2); }
-    .skin-option.selected, .map-option.selected { border-color:#ffe600; background-color:rgba(255,255,255,0.3); box-shadow:0 0 15px rgba(255,230,0,0.7); }
-    .skin-option img, .map-option img { width:clamp(40px,10vmin,55px); height:clamp(40px,10vmin,55px); image-rendering:pixelated; display:block; margin:0 auto; border:2px solid #333; border-radius:5px; object-fit:cover; }
-    .skin-option p, .map-option p { margin-top:0.8vmin; font-size:clamp(0.55em,1.8vmin,0.8em); color:white; text-shadow:1px 1px 0 rgba(0,0,0,0.7); }
-    .difficulty-button { background-color:#6c757d; color:white; padding:1vmin 2.2vmin; border:2px solid #5a6268; border-radius:8px; font-size:clamp(0.65em,2.2vmin,0.85em); cursor:pointer; box-shadow:3px 3px 0 rgba(0,0,0,0.5); transition:all 0.1s ease; }
-    .difficulty-button:hover { background-color:#5a6268; transform:translate(1px,1px); box-shadow:2px 2px 0 rgba(0,0,0,0.5); }
-    .difficulty-button.selected { background-color:#007bff; border-color:#0056b3; box-shadow:3px 3px 0 rgba(0,0,0,0.7); }
-    .difficulty-button[data-difficulty="easy"].selected { background-color:#28a745; border-color:#218838; }
-    .difficulty-button[data-difficulty="hard"].selected { background-color:#dc3545; border-color:#c82333; }
-    .flex-spacer { flex-grow:1; min-height:2vmin; }
-    .start-button { background-color:#4CAF50; color:#ffc107; padding:1.5vmin 3vmin; border:3px solid #367c39; border-radius:10px; font-size:clamp(1em,4vmin,1.4em); cursor:pointer; box-shadow:5px 5px 0 rgba(0,0,0,0.7); transition:all 0.1s ease; }
-    .start-button:hover { background-color:#45a049; box-shadow:3px 3px 0 rgba(0,0,0,0.7); transform:translate(2px,2px); }
-    .start-button:active { background-color:#3e8e41; box-shadow:1px 1px 0 rgba(0,0,0,0.7); transform:translate(4px,4px); }
-    #startMenu { display:flex; }
-    #gameOverMenu { display:none; cursor: pointer; }
-    #restartButton { margin-top:1vmin; padding:0.8vmin 2vmin; font-size:clamp(0.8em,2.5vmin,1em); border:2px solid #ffc107; border-radius:8px; background:#ffc107; color:#333; cursor:pointer; }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="gameContainer">
@@ -41,22 +15,43 @@
       <h1>FLAPPY BIRD</h1>
       <p>Chọn chim của bạn:</p>
       <div class="skin-selection">
-        <div class="skin-option selected" data-skin="bird1.png"><img src="assets/birds/bird1.png" alt="Bird 1"><p>Chim vàng</p></div>
-        <div class="skin-option" data-skin="bird2.png"><img src="assets/birds/bird2.png" alt="Bird 2"><p>Chim xanh</p></div>
-        <div class="skin-option" data-skin="bird3.png"><img src="assets/birds/bird3.png" alt="Bird 3"><p>Chim đỏ</p></div>
+        <div class="skin-option selected" data-skin="bird1.png">
+          <img src="assets/birds/bird1.png" alt="Bird 1" />
+          <p>Chim vàng</p>
+        </div>
+        <div class="skin-option" data-skin="bird2.png">
+          <img src="assets/birds/bird2.png" alt="Bird 2" />
+          <p>Chim xanh</p>
+        </div>
+        <div class="skin-option" data-skin="bird3.png">
+          <img src="assets/birds/bird3.png" alt="Bird 3" />
+          <p>Chim đỏ</p>
+        </div>
       </div>
+
       <p>Chọn map:</p>
       <div class="map-selection">
-        <div class="map-option selected" data-map="default"><img src="assets/maps/default/background.png" alt="Map Default"><p>Mặc định</p></div>
-        <div class="map-option" data-map="city"><img src="assets/maps/city/background_day.png" alt="Map City"><p>Thành phố</p></div>
-        <div class="map-option" data-map="forest"><img src="assets/maps/forest/background_forest.png" alt="Map Forest"><p>Rừng</p></div>
+        <div class="map-option selected" data-map="default">
+          <img src="assets/maps/default/background.png" alt="Map Default" />
+          <p>Mặc định</p>
+        </div>
+        <div class="map-option" data-map="city">
+          <img src="assets/maps/city/background_day.png" alt="Map City" />
+          <p>Thành phố</p>
+        </div>
+        <div class="map-option" data-map="forest">
+          <img src="assets/maps/forest/background_forest.png" alt="Map Forest" />
+          <p>Rừng</p>
+        </div>
       </div>
+
       <p>Chọn chế độ:</p>
       <div class="difficulty-selection">
         <button class="difficulty-button selected" data-difficulty="normal">THƯỜNG</button>
         <button class="difficulty-button" data-difficulty="easy">DỄ</button>
         <button class="difficulty-button" data-difficulty="hard">KHÓ</button>
       </div>
+
       <div class="flex-spacer"></div>
       <button id="startButton" class="start-button">BẮT ĐẦU</button>
     </div>
@@ -64,8 +59,7 @@
     <div id="gameOverMenu" class="game-overlay">
       <h1>GAME OVER!</h1>
       <p id="finalScore">Điểm của bạn: 0</p>
-      <p>Nhấp vào màn hình hoặc nhấn Space để chơi lại!</p>
-      <button id="restartButton">Chơi lại</button>
+      <p>Nhấn Space hoặc click để chơi lại!</p>
     </div>
   </div>
 
